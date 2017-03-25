@@ -9,7 +9,6 @@ DEV_ENV_PREFIX := docker run --rm -v ${CURDIR}:${DEV_ENV_WORK_DIR} -w ${DEV_ENV_
 DEV_ENV_CMD := ${DEV_ENV_PREFIX} ${DEV_ENV_IMAGE}
 
 BINARY_DEST_DIR := rootfs/usr/bin
-DOCS_DEST_DIR := rootfs/usr/local/share/doc
 
 # # It's necessary to set this because some environments don't link sh -> bash.
 SHELL := /bin/bash
@@ -23,7 +22,7 @@ LDFLAGS := "-s -w \
 
 build:
 	mkdir -p ${BINARY_DEST_DIR}
-	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress pkg/cmd/main.go
+	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
 
 docker-build:
