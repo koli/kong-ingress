@@ -2,9 +2,11 @@ package kong
 
 import (
 	"encoding/json"
+	"reflect"
+
+	"net/url"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/rest"
 )
 
@@ -17,9 +19,9 @@ type APIGetter interface {
 // APIInterface has methods to work with Kong Endpoints
 // ref: https://getkong.org/docs/0.9.x/admin-api/#api-object
 type APIInterface interface {
-	List(selector fields.Selector) (*APIList, error)
-	Get(name string) (*API, error)
-	UpdateOrCreate(data *API) (*API, error)
+	List(params url.Values) (*APIList, error)
+	Get(name string) (*API, *APIResponse)
+	UpdateOrCreate(data *API) (*API, *APIResponse)
 	Delete(nameOrID string) error
 }
 
@@ -29,25 +31,33 @@ type api struct {
 }
 
 // Get gets the resource with the specified name.
-func (a *api) Get(name string) (*API, error) {
+func (a *api) Get(name string) (*API, *APIResponse) {
 	api := &API{}
-	data, err := a.client.Get().
+	resp := a.client.Get().
 		Resource(a.resource.Name).
 		Name(name).
-		DoRaw()
+		Do()
+	statusCode := reflect.ValueOf(resp).FieldByName("statusCode").Int()
+	raw, err := resp.Raw()
+	response := &APIResponse{StatusCode: int(statusCode), err: err}
 	if err != nil {
-		return nil, err
+		response.Raw = raw
+		return nil, response
 	}
-	return api, json.Unmarshal(data, api)
+	response.err = json.Unmarshal(raw, api)
+	return api, response
 }
 
 // List returns a list of objects for this resource.
-func (a *api) List(selector fields.Selector) (*APIList, error) {
+func (a *api) List(params url.Values) (*APIList, error) {
 	apiList := &APIList{}
-	data, err := a.client.Get().
-		Resource(a.resource.Name).
-		FieldsSelectorParam(selector). // TOD: test it
-		DoRaw()
+	request := a.client.Get().Resource(a.resource.Name)
+	for k, vals := range params {
+		for _, v := range vals {
+			request.Param(k, v)
+		}
+	}
+	data, err := request.DoRaw()
 	if err != nil {
 		return nil, err
 	}
@@ -64,19 +74,26 @@ func (a *api) Delete(nameOrID string) error {
 }
 
 // Update updates the provided resource.
-func (a *api) UpdateOrCreate(data *API) (*API, error) {
+func (a *api) UpdateOrCreate(data *API) (*API, *APIResponse) {
 	rawData, err := json.Marshal(data)
 	if err != nil {
-		return nil, err
+		return nil, &APIResponse{err: err}
 	}
-	resp, err := a.client.Put().
+	resp := a.client.Put().
 		Resource(a.resource.Name).
 		Body(rawData).
 		SetHeader("Content-Type", "application/json").
-		DoRaw()
+		Do()
+
+	statusCode := reflect.ValueOf(resp).FieldByName("statusCode").Int()
+	raw, err := resp.Raw()
+	response := &APIResponse{StatusCode: int(statusCode), err: err}
+
 	if err != nil {
-		return nil, err
+		response.Raw = raw
+		return nil, response
 	}
 	api := &API{}
-	return api, json.Unmarshal(resp, api)
+	response.err = json.Unmarshal(raw, api)
+	return api, response
 }

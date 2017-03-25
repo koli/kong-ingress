@@ -1,6 +1,30 @@
 package kong
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
+
+// APIResponse contains the response from an API call
+type APIResponse struct {
+	err        error
+	StatusCode int
+	Raw        []byte
+}
+
+func (r *APIResponse) Error() error {
+	return r.err
+}
+
+func (r *APIResponse) String() string {
+	if r.Raw == nil && r.StatusCode == 0 {
+		return r.err.Error()
+	}
+	if r.Raw != nil {
+		return fmt.Sprintf("[%d] %s", r.StatusCode, string(r.Raw))
+	}
+	return fmt.Sprintf("[%d] %s", r.StatusCode, r.err)
+}
 
 type timestamp int64
 
@@ -10,20 +34,19 @@ func (t timestamp) GetTime() time.Time {
 }
 
 // API represents a kong api object
-// ref: https://getkong.org/docs/0.9.x/admin-api/#api-object
+// ref: https://getkong.org/docs/0.10.x/admin-api/#api-object
 type API struct {
-	UID              string    `json:"id,omitempty"`
-	Name             string    `json:"name,omitempty"`
-	RequestHost      string    `json:"request_host,omitempty"`
-	RequestPath      string    `json:"request_path,omitempty"`
-	StripRequestPath bool      `json:"strip_request_path"`
-	PreserveHost     bool      `json:"preserve_host"`
-	UpstreamURL      string    `json:"upstream_url"`
-	CreatedAt        timestamp `json:"created_at,omitempty"`
+	UID          string    `json:"id,omitempty"`
+	Name         string    `json:"name,omitempty"`
+	Hosts        []string  `json:"hosts,omitempty"`
+	URIs         []string  `json:"uris,omitempty"`
+	PreserveHost bool      `json:"preserve_host"`
+	UpstreamURL  string    `json:"upstream_url"`
+	CreatedAt    timestamp `json:"created_at,omitempty"`
 }
 
 // APIList is a list of API's
-// ref: https://getkong.org/docs/0.9.x/admin-api/#list-apis
+// ref: https://getkong.org/docs/0.10.x/admin-api/#list-apis
 type APIList struct {
 	Total    int    `json:"total"`
 	Items    []API  `json:"data"`
@@ -37,7 +60,7 @@ type PluginSchema map[string]interface{}
 // ref: https://getkong.org/plugins/
 type PluginName string
 
-// https://getkong.org/docs/0.9.x/admin-api/#retrieve-enabled-plugins
+// https://getkong.org/docs/0.10.x/admin-api/#retrieve-enabled-plugins
 const (
 	// ref: https://getkong.org/plugins/cors/
 	CorsPlugin PluginName = "cors"
@@ -50,7 +73,7 @@ const (
 )
 
 // Plugin represents a kong plugin object
-// ref: https://getkong.org/docs/0.9.x/admin-api/#plugin-object
+// ref: https://getkong.org/docs/0.10.x/admin-api/#plugin-object
 type Plugin struct {
 	UID        string       `json:"id,omitempty"`
 	APIUID     string       `json:"api_id,omitempty"`
@@ -62,7 +85,7 @@ type Plugin struct {
 }
 
 // PluginList is a list of plugins
-// ref: https://getkong.org/docs/0.9.x/admin-api/#list-all-plugins
+// ref: https://getkong.org/docs/0.10.x/admin-api/#list-all-plugins
 type PluginList struct {
 	Total    int      `json:"total"`
 	Items    []Plugin `json:"data"`
