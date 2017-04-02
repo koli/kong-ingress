@@ -189,8 +189,8 @@ func (k *KongController) syncHandler(key string) error {
 		// }
 		if !isAllowedHost(r.Host, ing.Namespace) {
 			// glog.Infof("%s - Field 'host' in wrong format", key)
-			k.recorder.Event(ing, v1.EventTypeWarning, "Unsupported", "Field 'host' in wrong format, expecting: [name].[namespace].[domain.tld]")
-			return fmt.Errorf("%s - field 'host' in wrong format, expect: [name].[namespace].[domain.tld]", key)
+			k.recorder.Event(ing, v1.EventTypeWarning, "Unsupported", "Field 'host' in wrong format, expecting: [name]-[namespace].[domain.tld]")
+			return fmt.Errorf("%s - field 'host' in wrong format, expect: [name]-[namespace].[domain.tld]", key)
 		}
 
 		if r.HTTP == nil {
