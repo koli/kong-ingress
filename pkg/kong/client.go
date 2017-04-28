@@ -35,8 +35,8 @@ func (c *CoreClient) API() APIInterface {
 	return newAPI(c)
 }
 
-func newAPI(c *CoreClient) *api {
-	return &api{
+func newAPI(c *CoreClient) *apiKong {
+	return &apiKong{
 		client: c.RESTClient(),
 		resource: &metav1.APIResource{
 			Name:       "apis",

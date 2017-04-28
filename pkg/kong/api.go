@@ -6,11 +6,13 @@ import (
 
 	"net/url"
 
+	"regexp"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
 
-// ApiGetter has a method to return an ApiInterface
+// APIGetter has a method to return an ApiInterface
 // A group's client should implement this interface.
 type APIGetter interface {
 	API() APIInterface
@@ -20,18 +22,19 @@ type APIGetter interface {
 // ref: https://getkong.org/docs/0.9.x/admin-api/#api-object
 type APIInterface interface {
 	List(params url.Values) (*APIList, error)
+	ListByRegexp(params url.Values, pattern string) (*APIList, error)
 	Get(name string) (*API, *APIResponse)
 	UpdateOrCreate(data *API) (*API, *APIResponse)
 	Delete(nameOrID string) error
 }
 
-type api struct {
+type apiKong struct {
 	client   rest.Interface
 	resource *metav1.APIResource
 }
 
 // Get gets the resource with the specified name.
-func (a *api) Get(name string) (*API, *APIResponse) {
+func (a *apiKong) Get(name string) (*API, *APIResponse) {
 	api := &API{}
 	resp := a.client.Get().
 		Resource(a.resource.Name).
@@ -49,7 +52,7 @@ func (a *api) Get(name string) (*API, *APIResponse) {
 }
 
 // List returns a list of objects for this resource.
-func (a *api) List(params url.Values) (*APIList, error) {
+func (a *apiKong) List(params url.Values) (*APIList, error) {
 	apiList := &APIList{}
 	request := a.client.Get().Resource(a.resource.Name)
 	for k, vals := range params {
@@ -61,11 +64,40 @@ func (a *api) List(params url.Values) (*APIList, error) {
 	if err != nil {
 		return nil, err
 	}
-	return apiList, json.Unmarshal(data, apiList)
+	if err := json.Unmarshal(data, apiList); err != nil {
+		return nil, err
+	}
+	// recurse to retrieve all apis
+	if len(apiList.NextPage) > 0 {
+		params.Add("offset", apiList.Offset)
+		result, err := a.List(params)
+		if err != nil {
+			return nil, err
+		}
+		apiList.Items = append(apiList.Items, result.Items...)
+	}
+	return apiList, err
+}
+
+// ListByRegexp returns a list of object for this resource based on a regexp pattern
+// which is evaluated by regexp.MustCompile
+func (a *apiKong) ListByRegexp(params url.Values, pattern string) (*APIList, error) {
+	apiList, err := a.List(params)
+	if err != nil {
+		return nil, err
+	}
+	apiListResult := &APIList{}
+	re := regexp.MustCompile(pattern)
+	for _, api := range apiList.Items {
+		if re.MatchString(api.Name) {
+			apiListResult.Items = append(apiListResult.Items, api)
+		}
+	}
+	return apiListResult, nil
 }
 
 // Delete deletes the resource with the specified name.
-func (a *api) Delete(nameOrID string) error {
+func (a *apiKong) Delete(nameOrID string) error {
 	return a.client.Delete().
 		Resource(a.resource.Name).
 		Name(nameOrID).
@@ -74,7 +106,7 @@ func (a *api) Delete(nameOrID string) error {
 }
 
 // Update updates the provided resource.
-func (a *api) UpdateOrCreate(data *API) (*API, *APIResponse) {
+func (a *apiKong) UpdateOrCreate(data *API) (*API, *APIResponse) {
 	rawData, err := json.Marshal(data)
 	if err != nil {
 		return nil, &APIResponse{err: err}

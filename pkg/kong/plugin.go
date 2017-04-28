@@ -14,7 +14,7 @@ type PluginGetter interface {
 	Plugin() PluginInterface
 }
 
-// ApiInterface has methods to work with Kong Endpoints
+// PluginInterface has methods to work with Kong Endpoints
 // ref: https://getkong.org/docs/0.9.x/admin-api/#api-object
 type PluginInterface interface {
 	List(selector fields.Selector) (*PluginList, error)
