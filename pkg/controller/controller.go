@@ -146,6 +146,7 @@ func (k *KongController) Run(workers int, stopc <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer k.ingQueue.shutdown()
 	defer k.domQueue.shutdown()
+	defer k.svcQueue.shutdown()
 
 	go k.infIng.Run(stopc)
 	go k.infSvc.Run(stopc)
