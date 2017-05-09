@@ -1,5 +1,7 @@
 # Kong Ingress
 
+[![Docker Repository on Quay](https://quay.io/repository/koli/kong-ingress/status "Docker Repository on Quay")](https://quay.io/repository/koli/kong-ingress)
+
 It's a Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) Controller for [Kong](https://getkong.org/about) which manages Kong apis for each existent host on ingresses resources.
 
 ## What's is an Ingress Controller
