@@ -11,7 +11,7 @@ DEV_ENV_CMD := ${DEV_ENV_PREFIX} ${DEV_ENV_IMAGE}
 BINARY_DEST_DIR := rootfs/usr/bin
 
 # # It's necessary to set this because some environments don't link sh -> bash.
-SHELL := /bin/bash
+SHELL := /bin/sh
 
 # Common flags passed into Go's linker.
 GOTEST := go test --race -v
@@ -24,6 +24,10 @@ build:
 	mkdir -p ${BINARY_DEST_DIR}
 	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
+
+build-local:
+	mkdir -p ${BINARY_DEST_DIR}
+	go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go	
 
 docker-build:
 	docker build --rm -t ${IMAGE} rootfs
