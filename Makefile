@@ -25,6 +25,10 @@ build:
 	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
 
+build-local:
+	mkdir -p ${BINARY_DEST_DIR}
+	go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go	
+
 docker-build:
 	docker build --rm -t ${IMAGE} rootfs
 	docker tag ${IMAGE} ${MUTABLE_IMAGE}
