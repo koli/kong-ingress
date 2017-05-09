@@ -26,6 +26,7 @@ build:
 	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
 
 build-local:
+	SHELL := /bin/sh
 	mkdir -p ${BINARY_DEST_DIR}
 	go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go	
 
