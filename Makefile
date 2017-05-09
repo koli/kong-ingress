@@ -11,7 +11,7 @@ DEV_ENV_CMD := ${DEV_ENV_PREFIX} ${DEV_ENV_IMAGE}
 BINARY_DEST_DIR := rootfs/usr/bin
 
 # # It's necessary to set this because some environments don't link sh -> bash.
-SHELL := /bin/sh
+SHELL := /bin/bash
 
 # Common flags passed into Go's linker.
 GOTEST := go test --race -v
