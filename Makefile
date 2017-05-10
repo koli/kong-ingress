@@ -10,9 +10,6 @@ DEV_ENV_CMD := ${DEV_ENV_PREFIX} ${DEV_ENV_IMAGE}
 
 BINARY_DEST_DIR := rootfs/usr/bin
 
-# # It's necessary to set this because some environments don't link sh -> bash.
-SHELL := /bin/bash
-
 # Common flags passed into Go's linker.
 GOTEST := go test --race -v
 LDFLAGS := "-s -w \
@@ -21,12 +18,13 @@ LDFLAGS := "-s -w \
 -X kolihub.io/kong-ingress/pkg/version.buildDate=${DATE}"
 
 build:
+	export SHELL=/bin/bash
 	mkdir -p ${BINARY_DEST_DIR}
 	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
 
 build-local:
-	SHELL := /bin/sh
+	export SHELL=/bin/sh
 	mkdir -p ${BINARY_DEST_DIR}
 	go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go	
 
