@@ -1,4 +1,4 @@
-FROM golang:1.7.5-alpine3.5
+FROM quay.io/koli/golang:1.7.5-alpine3.5
 
 RUN apk add --no-cache git make curl
 
