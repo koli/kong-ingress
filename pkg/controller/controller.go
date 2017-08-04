@@ -182,18 +182,18 @@ func (k *KongController) syncServices(key string, numRequeues int) error {
 		return nil
 	}
 	svc := obj.(*v1.Service)
-	if svc.DeletionTimestamp != nil {
+	if svc.DeletionTimestamp == nil {
+		return nil
+	}
+
+	for _, port := range svc.Spec.Ports {
 		proto := "http"
-		for _, port := range svc.Spec.Ports {
-			if port.Port == 443 {
-				proto = "https"
-				break
-			}
+		if port.Port == 443 {
+			proto = "https"
 		}
-		upstreamURL := k.getUpstream(proto, svc.Namespace, svc.Name)
+		upstreamURL := k.getUpstream(proto, svc.Namespace, svc.Name, port.Port)
 		glog.V(4).Infof("%s - gc=true, cleaning up kong apis from upstream %s", key, upstreamURL)
-		params := url.Values{}
-		params.Add("upstream_url", upstreamURL)
+		params := url.Values{"upstream_url": []string{upstreamURL}}
 		apiList, err := k.kongcli.API().List(params)
 		if err != nil {
 			return fmt.Errorf("gc=true, failed listing apis [%s]", err)
@@ -290,17 +290,21 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 				return fmt.Errorf("failed configuring service: %s", err)
 			}
 
-			// This is required?
 			proto := "http"
 			if p.Backend.ServicePort.IntVal == 443 {
 				proto = "https"
 			}
-			upstreamURL := k.getUpstream(proto, ing.Namespace, p.Backend.ServiceName)
+			upstreamURL := k.getUpstream(
+				proto,
+				ing.Namespace,
+				p.Backend.ServiceName,
+				p.Backend.ServicePort.IntVal,
+			)
 			pathURI := p.Path
 			// An empty path or root one (/) has no distinction in Kong.
 			// Normalize the path otherwise it will generate a distinct adler hash
-			if p.Path == "/" || p.Path == "" {
-				pathURI = p.Path
+			if pathURI == "/" || pathURI == "" {
+				pathURI = "/"
 			}
 			apiName := fmt.Sprintf("%s~%s~%s", r.Host, ing.Namespace, GenAdler32Hash(pathURI))
 			api, resp := k.kongcli.API().Get(apiName)
@@ -333,13 +337,13 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 	return nil
 }
 
-func (k *KongController) getUpstream(proto, ns, svcName string) string {
-	// TODO: set a port to upstream
-	return fmt.Sprintf("%s://%s.%s.%s",
+func (k *KongController) getUpstream(proto, ns, svcName string, svcPort int32) string {
+	return fmt.Sprintf("%s://%s.%s.%s:%d",
 		proto,
 		svcName,
 		ns,
-		k.cfg.ClusterDNS)
+		k.cfg.ClusterDNS,
+		svcPort)
 }
 
 func (k *KongController) claimDomains(ing *v1beta1.Ingress) error {
