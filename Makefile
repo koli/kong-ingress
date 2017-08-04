@@ -9,6 +9,8 @@ DEV_ENV_PREFIX := docker run --rm -v ${CURDIR}:${DEV_ENV_WORK_DIR} -w ${DEV_ENV_
 DEV_ENV_CMD := ${DEV_ENV_PREFIX} ${DEV_ENV_IMAGE}
 
 BINARY_DEST_DIR := rootfs/usr/bin
+GOOS ?= linux
+GOARCH ?= amd64
 
 # Common flags passed into Go's linker.
 GOTEST := go test --race -v
@@ -25,8 +27,9 @@ build:
 
 build-local:
 	export SHELL=/bin/sh
+	rm -rf ${BINARY_DEST_DIR}
 	mkdir -p ${BINARY_DEST_DIR}
-	go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go	
+	env GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 
 docker-build:
 	docker build --rm -t ${IMAGE} rootfs
