@@ -90,7 +90,10 @@ func main() {
 			glog.Fatalf("error creating client configuration: %v", err)
 		}
 	} else {
-		config = &rest.Config{Host: cfg.Host}
+		config = &rest.Config{
+			Host:            cfg.Host,
+			TLSClientConfig: cfg.TLSConfig,
+		}
 	}
 	var tprConfig *rest.Config
 	tprConfig = config
