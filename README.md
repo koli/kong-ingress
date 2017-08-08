@@ -23,7 +23,7 @@ Some of the main problems of using name based virtual hosting with ingress is th
 
 A third party resource is used to allow the kong ingress to lease domains for each host specified in ingress resources. If a domain is already claimed in the cluster, the controller rejects the creation of apis on Kong.
 
-[More info](https://raw.githubusercontent.com/kolihub/kong-ingress/master/docs/domain-claims.md)
+[More info](./docs/domain-claims.md)
 
 > More info about the issue: https://github.com/kubernetes/kubernetes/issues/30151
 
