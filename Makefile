@@ -29,10 +29,10 @@ build-local:
 	export SHELL=/bin/sh
 	rm -rf ${BINARY_DEST_DIR}
 	mkdir -p ${BINARY_DEST_DIR}
-	env GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
+	env GOOS=${GOOS} GOARCH=${GOARCH} go build -i -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
 
 docker-build:
-	docker build --rm -t ${IMAGE} rootfs
+	docker build --rm -t ${IMAGE} .
 	docker tag ${IMAGE} ${MUTABLE_IMAGE}
 
 test-unit:

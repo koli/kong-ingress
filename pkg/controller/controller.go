@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"time"
+  "strconv"
 
 	"github.com/golang/glog"
 	"kolihub.io/kong-ingress/pkg/kong"
@@ -313,11 +314,19 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 				return fmt.Errorf("failed listing api: %s", resp)
 			}
 
+      stripUri, err := strconv.ParseBool(ing.Annotations["ingress.kubernetes.io/strip-uri"])
+      if err != nil {
+        stripUri = false
+        glog.Infof("Failed to parse strip-uri annotation, setting it to false")
+      }
+
 			apiBody := &kong.API{
 				Name:        apiName,
 				Hosts:       []string{r.Host},
 				UpstreamURL: upstreamURL,
+        StripUri:   stripUri,
 			}
+
 			if p.Path != "" {
 				apiBody.URIs = []string{pathURI}
 			}
