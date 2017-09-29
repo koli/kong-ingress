@@ -12,7 +12,7 @@ spec:
     spec:
       terminationGracePeriodSeconds: 60
       containers:
-      - name: koli-controller
+      - name: kong-ingress
         image: 'quay.io/koli/kong-ingress:v0.2.1-alpha'
         args:
         - --auto-claim
