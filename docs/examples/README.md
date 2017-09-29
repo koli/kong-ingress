@@ -54,7 +54,7 @@ Kong can easily be provisioned to Minikube cluster using the following steps:
     You can now see the resources that have been deployed using `kubectl`:
 
     ```bash
-    $ kubectl get all
+    $ kubectl -n kong-system get all
     ```
 
     Once the Kong services are started, you can test Kong by making the
