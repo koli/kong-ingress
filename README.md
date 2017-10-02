@@ -41,12 +41,12 @@ Install [minikube](https://github.com/kubernetes/minikube) because is the quicke
 export CLUSTERDNS=$(kubectl get svc kube-dns -n kube-system --template {{.spec.clusterIP}})
 
 # Install a Kong Server
-kubectl create -f https://raw.githubusercontent.com/kolihub/kong-ingress/master/docs/examples/kong-server.yaml
+kubectl create -f https://raw.githubusercontent.com/koli/kong-ingress/master/docs/examples/kong-server.yaml
 kubectl patch deployment -n kong-system kong -p \
   '{"spec": {"template": {"spec":{"containers":[{"name": "kong", "env":[{"name": "KONG_DNS_RESOLVER", "value": '\"$CLUSTERDNS\"'}]}]}}}}'
 
 # Install the Kong Ingress Controller
-kubectl create -f https://raw.githubusercontent.com/kolihub/kong-ingress/master/docs/examples/install.yaml
+kubectl create -f https://raw.githubusercontent.com/koli/kong-ingress/master/docs/examples/kong-ingress.yaml
 
 # Expose Kong
 kubectl expose deployment kong -n kong-system --name kong-proxy --external-ip=$(minikube ip) --port 8000 --target-port 8000
