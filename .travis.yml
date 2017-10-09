@@ -13,6 +13,11 @@ notifications:
 go:
   - 1.9
 
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+    make docker-build;
+    fi
+
 script:
-  - make build-local
+  - make build test
 

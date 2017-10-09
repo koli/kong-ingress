@@ -1,5 +1,6 @@
+GIT_TAG ?= $(or ${TRAVIS_TAG},${TRAVIS_TAG},latest)
 MUTABLE_VERSION ?= latest
-VERSION ?= unknown
+VERSION ?= ${GIT_TAG}
 GITCOMMIT ?= $(shell git rev-parse HEAD)
 DATE ?= $(shell date -u "+%Y-%m-%dT%H:%M:%SZ")
 
@@ -16,7 +17,9 @@ info:
 	@echo "Mutable tag:     ${MUTABLE_IMAGE}"
 
 .PHONY: docker-push
-docker-push: docker-immutable-push docker-mutable-push
+docker-push:
+	docker login -u="${DOCKER_USERNAME}" -p="${DOCKER_PASSWORD}";
+	docker push ${IMAGE};
 
 .PHONY: docker-immutable-push
 docker-immutable-push:

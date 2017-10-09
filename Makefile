@@ -12,6 +12,8 @@ BINARY_DEST_DIR := rootfs/usr/bin
 GOOS ?= linux
 GOARCH ?= amd64
 
+SHELL ?= /bin/bash
+
 # Common flags passed into Go's linker.
 GOTEST := go test --race -v
 LDFLAGS := "-s -w \
@@ -20,13 +22,6 @@ LDFLAGS := "-s -w \
 -X kolihub.io/kong-ingress/pkg/version.buildDate=${DATE}"
 
 build:
-	export SHELL=/bin/bash
-	mkdir -p ${BINARY_DEST_DIR}
-	${DEV_ENV_CMD} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
-	${DEV_ENV_CMD} upx -9 ${BINARY_DEST_DIR}/kong-ingress
-
-build-local:
-	export SHELL=/bin/sh
 	rm -rf ${BINARY_DEST_DIR}
 	mkdir -p ${BINARY_DEST_DIR}
 	env GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags ${LDFLAGS} -o ${BINARY_DEST_DIR}/kong-ingress cmd/main.go
@@ -35,7 +30,9 @@ docker-build:
 	docker build --rm -t ${IMAGE} rootfs
 	docker tag ${IMAGE} ${MUTABLE_IMAGE}
 
+test: test-unit
+
 test-unit:
 	${GOTEST} ./pkg/...
 
-.PHONY: build docker-build
+.PHONY: build test docker-build
