@@ -14,8 +14,9 @@ go:
   - 1.9
 
 after_success:
-  - make docker-build docker-push
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+  make docker-build docker-push;
+  fi
 
 script:
   - make test build
-
