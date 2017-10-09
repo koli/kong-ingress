@@ -1,0 +1,23 @@
+sudo: required
+
+services:
+  - docker
+
+language: go
+
+go_import_path: kolihub.io/kong-ingress
+
+notifications:
+  email: true
+
+go:
+  - 1.9
+
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+    make docker-build docker-push;
+    fi
+
+script:
+  - make test build
+
