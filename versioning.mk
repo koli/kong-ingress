@@ -18,8 +18,8 @@ info:
 
 .PHONY: docker-push
 docker-push:
-	docker login -u="${DOCKER_USERNAME}" -p="${DOCKER_PASSWORD}";
-	docker push ${IMAGE};
+	docker login quay.io -u="${DOCKER_USERNAME}" -p="${DOCKER_PASSWORD}"
+	docker push ${IMAGE}
 
 .PHONY: docker-immutable-push
 docker-immutable-push:
