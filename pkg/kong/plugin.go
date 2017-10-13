@@ -51,7 +51,6 @@ func (p *plugin) List(selector fields.Selector) (*PluginList, error) {
 		Resource(p.resource.Name).
 		Name(p.nameOrID).
 		SubResource("plugins").
-		FieldsSelectorParam(selector). // TOD: test it
 		DoRaw()
 	if err != nil {
 		return nil, err

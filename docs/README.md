@@ -173,4 +173,3 @@ spec:
           serviceName: web
           servicePort: 80
 ```
-

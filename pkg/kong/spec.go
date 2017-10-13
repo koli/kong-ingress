@@ -1,11 +1,8 @@
 package kong
 
 import (
-	"fmt"
 	"strings"
 	"time"
-
-	"k8s.io/client-go/pkg/api"
 )
 
 // HasKongFinalizer verify if the kong finalizer is set on the resource
@@ -60,18 +57,6 @@ func (d *Domain) GetDomainType() string {
 // GetPrimaryDomain returns the primary domain of the resource
 func (d *Domain) GetPrimaryDomain() string {
 	return d.Spec.PrimaryDomain
-}
-
-func (d *Domain) DeepCopy() (*Domain, error) {
-	objCopy, err := api.Scheme.DeepCopy(d)
-	if err != nil {
-		return nil, err
-	}
-	copied, ok := objCopy.(*Domain)
-	if !ok {
-		return nil, fmt.Errorf("expected Domain, got %#v", objCopy)
-	}
-	return copied, nil
 }
 
 // IsUpdateExpired validates if the last update of the resource is expired

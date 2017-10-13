@@ -1,15 +1,21 @@
 # Domain Claims
 
-Domain Claims are needed to control who owns a specific host in the cluster, the third party resource below is used to represent the information about claims:
+Domain Claims are needed to control who owns a specific host in the cluster, the custom resource defintion resource below is used to represent the information about claims:
 
 ```yaml
-apiVersion: extensions/v1beta1
-kind: ThirdPartyResource
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
 metadata:
-  name: domain.platform.koli.io
-description: Holds information about domain claims to prevent duplicated hosts in ingress resources
-versions:
-- name: v1
+  name: domains.platform.koli.io
+spec:
+  group: platform.koli.io
+  names:
+    kind: Domain
+    listKind: DomainList
+    plural: domains
+    singular: domain
+  scope: Namespaced
+  version: v1
 ```
 
 A domain claim is represented with the following specification:
@@ -53,7 +59,7 @@ A `shared` is a subdomain and means the domain is inherit from a `primary` type.
 
 1) Search in the `parent` attribute (must be a valid namespace)
 2) Search in the `shared` domain resource namespace
-3) Search in the [system namespace]()
+3) Search in the system namespace (the namespace in which the ingress controller is running)
 
 If a `primary` domain couldn't be found, the resource is configured to a failing state and it will be retried until a `primary` be found.
 
@@ -75,7 +81,7 @@ spec:
 
 ## Parent
 
-A `parent` attribute it's only useful when the resource is a `shared` type. It indicates the namespace to search for the `primary` domain, if it fail, fallbacks searching in the namespace of the resource and in [system namespace]()
+A `parent` attribute it's only useful when the resource is a `shared` type. It indicates the namespace to search for the `primary` domain, if it fail, fallbacks searching in the namespace of the resource and in system namespace
 
 > The `parent` namespace must explicity allow using the attribute `delegates`
 
@@ -141,7 +147,7 @@ spec:
   parent: acme-org
 status:
   phase: Failed
-  message: The primary domain wasn't found"
+  message: Primary domain not found
   reason: DomainNotFound
   lastUpdateTime: 2017-04-04T12:25:42Z
 ```
@@ -149,9 +155,6 @@ status:
 ## New
 
 The resource is prepared to be provisioned, in this state the kubernetes finalizer `kolihub.io/kong` is set and the status is changed to `Pending`. The status is represented by an empty string: `""`
-
-> **Note:** The finalizer doesn't do anything at this time, because the implementation is broken in Kubernetes: https://github.com/kubernetes/kubernetes/issues/40715.
-> In the future it will be used to clean the associated resources more efficiently (already implemented).
 
 ## Pending
 
@@ -167,12 +170,12 @@ If the domain doesn't contain any inconsistencies or duplicates, the state of th
 
 ## OK
 
-The domain is ready to be used in a ingress resource.
+The domain is ready to be used in an ingress resource.
 
 ## Failed
 
 This state means the claim has failed, the details are described in `reason` and `message` attributes.
 
 > **Note about status:** The status spec from a domain resource is used to control the state of a domain, the controller will act accordingly to this information.
-> The `status` attributes aren't immutable, thus an user could change it causing an undesirable behaviour for the resource.
+> The `status` attribute isn't immutable, thus an user could change it causing an undesirable behaviour for the resource.
 > [Related issue.](https://github.com/kubernetes/kubernetes/issues/38113)

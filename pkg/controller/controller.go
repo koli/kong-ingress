@@ -10,14 +10,15 @@ import (
 	"github.com/golang/glog"
 	"kolihub.io/kong-ingress/pkg/kong"
 
+	"k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes/scheme"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
@@ -36,7 +37,7 @@ var (
 // KongController watches the kubernetes api server and adds/removes apis on Kong
 type KongController struct {
 	client    kubernetes.Interface
-	tprClient rest.Interface
+	extClient restclient.Interface
 	kongcli   *kong.CoreClient
 
 	infIng cache.SharedIndexInformer
@@ -52,7 +53,13 @@ type KongController struct {
 }
 
 // NewKongController creates a new KongController
-func NewKongController(client kubernetes.Interface, tprClient rest.Interface, kongcli *kong.CoreClient, cfg *Config, resyncPeriod time.Duration) *KongController {
+func NewKongController(
+	client kubernetes.Interface,
+	extClient restclient.Interface,
+	kongcli *kong.CoreClient,
+	cfg *Config,
+	resyncPeriod time.Duration,
+) *KongController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
@@ -60,9 +67,9 @@ func NewKongController(client kubernetes.Interface, tprClient rest.Interface, ko
 	})
 	kc := &KongController{
 		client:    client,
-		tprClient: tprClient,
+		extClient: extClient,
 		kongcli:   kongcli,
-		recorder:  eventBroadcaster.NewRecorder(api.Scheme, v1.EventSource{Component: "kong-controller"}),
+		recorder:  eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "kong-controller"}),
 		cfg:       cfg,
 	}
 	kc.ingQueue = NewTaskQueue(kc.syncIngress, "kong_ingress_queue")
@@ -70,7 +77,7 @@ func NewKongController(client kubernetes.Interface, tprClient rest.Interface, ko
 	kc.svcQueue = NewTaskQueue(kc.syncServices, "kong_service_queue")
 
 	kc.infIng = cache.NewSharedIndexInformer(
-		cache.NewListWatchFromClient(client.Extensions().RESTClient(), "ingresses", api.NamespaceAll, fields.Everything()),
+		cache.NewListWatchFromClient(client.Extensions().RESTClient(), "ingresses", metav1.NamespaceAll, fields.Everything()),
 		&v1beta1.Ingress{},
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -103,7 +110,7 @@ func NewKongController(client kubernetes.Interface, tprClient rest.Interface, ko
 	})
 
 	kc.infSvc = cache.NewSharedIndexInformer(
-		cache.NewListWatchFromClient(client.Core().RESTClient(), "services", api.NamespaceAll, fields.Everything()),
+		cache.NewListWatchFromClient(client.Core().RESTClient(), "services", metav1.NamespaceAll, fields.Everything()),
 		&v1.Service{},
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -126,7 +133,7 @@ func NewKongController(client kubernetes.Interface, tprClient rest.Interface, ko
 	})
 
 	kc.infDom = cache.NewSharedIndexInformer(
-		cache.NewListWatchFromClient(tprClient, "domains", api.NamespaceAll, fields.Everything()),
+		cache.NewListWatchFromClient(extClient, "domains", metav1.NamespaceAll, fields.Everything()),
 		&kong.Domain{},
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -248,7 +255,7 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 	}
 	if !isAllowed {
 		if numRequeues > 2 {
-			k.recorder.Eventf(ing, v1.EventTypeWarning, "DomainNotFound", "The domain '%s' wasn't claimed, check its state", notFoundHost)
+			k.recorder.Eventf(ing, v1.EventTypeWarning, "DomainNotFound", "The domain '%s' was not claimed, check its state", notFoundHost)
 		}
 		return fmt.Errorf("failed claiming domain %s, check its state!", notFoundHost)
 	}
@@ -361,16 +368,16 @@ func (k *KongController) claimDomains(ing *v1beta1.Ingress) error {
 				continue
 			}
 			glog.Infof("%s/%s - Updating %s domain %s ...", ing.Namespace, ing.Name, domainType, d.GetDomain())
-			domCopy, err := dom.DeepCopy()
-			if err != nil {
-				return fmt.Errorf("failed deep copying resource [%s]", err)
+			domCopy := dom.DeepCopy()
+			if domCopy == nil {
+				return fmt.Errorf("failed deep copying resource [%v]", dom)
 			}
 			domCopy.Spec = d.Spec
 			// If the domain exists, try to recover its status requeuing as a new domain
 			if domCopy.Status.Phase != kong.DomainStatusOK {
 				domCopy.Status = kong.DomainStatus{Phase: kong.DomainStatusNew}
 			}
-			res, err := k.tprClient.Put().
+			res, err := k.extClient.Put().
 				Resource("domains").
 				Name(domCopy.Name).
 				Namespace(ing.Namespace).
@@ -381,7 +388,7 @@ func (k *KongController) claimDomains(ing *v1beta1.Ingress) error {
 			}
 
 		} else {
-			res, err := k.tprClient.Post().
+			res, err := k.extClient.Post().
 				Resource("domains").
 				Namespace(ing.Namespace).
 				Body(d).
