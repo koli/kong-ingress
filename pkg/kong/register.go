@@ -1,16 +1,21 @@
 package kong
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// GroupName is the group name use in this package
-const GroupName = "platform.koli.io"
+const (
+	GroupName      = "platform.koli.io"
+	ResourceKind   = "Domain"
+	ResourcePlural = "domains"
+)
 
-// SchemeGroupVersion is group version used to register these objects
-// var SchemeGroupVersion = unversioned.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1"}
+var (
+	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1"}
+	ResourceName       = ResourcePlural + "." + GroupName
+)
 
 // Kind takes an unqualified kind and returns a Group qualified GroupKind
 func Kind(kind string) schema.GroupKind {
@@ -34,11 +39,11 @@ var (
 )
 
 // Adds the list of known types to api.Scheme.
-func addKnownTypes(scheme *runtime.Scheme) error {
-	// TODO this gets cleaned up when the types are fixed
-	scheme.AddKnownTypes(SchemeGroupVersion,
+func addKnownTypes(s *runtime.Scheme) error {
+	s.AddKnownTypes(SchemeGroupVersion,
 		&Domain{},
 		&DomainList{},
 	)
+	metav1.AddToGroupVersion(s, SchemeGroupVersion)
 	return nil
 }

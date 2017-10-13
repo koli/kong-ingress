@@ -20,9 +20,9 @@ Kong it's an API Gateway that deals with L7 traffic, the ingress uses the kong a
 
 ### Domain Claims
 
-Some of the main problems of using name based virtual hosting with ingress is that you can't know who's is the owner of a specific host, thus a Kong api could be updated by multiple ingress resources resulting in a unwanted behaviour.
+Some of the main problems of using name based virtual hosting with ingress is that you can't know who's the owner of a specific host, thus a Kong api could be updated by multiple ingress resources resulting in an unwanted behaviour.
 
-A third party resource is used to allow the kong ingress to lease domains for each host specified in ingress resources. If a domain is already claimed in the cluster, the controller rejects the creation of apis on Kong.
+A [Custom Resource Definition](https://kubernetes.io/docs/concepts/api-extension/custom-resources/) is used to allow the kong ingress to lease domains for each host specified in ingress resources. If a domain is already claimed in the cluster, the controller rejects the creation of apis on Kong.
 
 [More info](./docs/domain-claims.md)
 
@@ -30,7 +30,7 @@ A third party resource is used to allow the kong ingress to lease domains for ea
 
 ## Prerequisites
 
-- Kubernetes cluster v1.6.0+
+- Kubernetes cluster v1.7.0+
 - Kubernetes DNS add-on
 - Kong server v0.10.0+
 

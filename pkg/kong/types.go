@@ -7,8 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Domain are a way for users to "claim" a domain and be able to create
-// ingresses
 type Domain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -17,7 +15,6 @@ type Domain struct {
 	Status DomainStatus `json:"status"`
 }
 
-// DomainList is a List of Domain
 type DomainList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

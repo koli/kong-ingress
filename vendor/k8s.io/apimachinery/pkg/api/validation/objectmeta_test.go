@@ -102,8 +102,8 @@ func TestValidateObjectMetaOwnerReferences(t *testing.T) {
 			description: "simple success - third party extension.",
 			ownerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "1",
 				},
@@ -128,29 +128,29 @@ func TestValidateObjectMetaOwnerReferences(t *testing.T) {
 			description: "simple controller ref success - one reference with Controller set",
 			ownerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "1",
 					Controller: &falseVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "2",
 					Controller: &trueVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "3",
 					Controller: &falseVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "4",
 				},
@@ -162,29 +162,29 @@ func TestValidateObjectMetaOwnerReferences(t *testing.T) {
 			description: "simple controller ref failure - two references with Controller set",
 			ownerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "1",
 					Controller: &falseVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "2",
 					Controller: &trueVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "3",
 					Controller: &trueVar,
 				},
 				{
-					APIVersion: "thirdpartyVersion",
-					Kind:       "thirdpartyKind",
+					APIVersion: "customresourceVersion",
+					Kind:       "customresourceKind",
 					Name:       "name",
 					UID:        "4",
 				},
@@ -267,6 +267,28 @@ func TestValidateFinalizersUpdate(t *testing.T) {
 	}
 	for name, tc := range testcases {
 		errs := ValidateObjectMetaUpdate(&tc.New, &tc.Old, field.NewPath("field"))
+		if len(errs) == 0 {
+			if len(tc.ExpectedErr) != 0 {
+				t.Errorf("case: %q, expected error to contain %q", name, tc.ExpectedErr)
+			}
+		} else if e, a := tc.ExpectedErr, errs.ToAggregate().Error(); !strings.Contains(a, e) {
+			t.Errorf("case: %q, expected error to contain %q, got error %q", name, e, a)
+		}
+	}
+}
+
+func TestValidateFinalizersPreventConflictingFinalizers(t *testing.T) {
+	testcases := map[string]struct {
+		ObjectMeta  metav1.ObjectMeta
+		ExpectedErr string
+	}{
+		"conflicting finalizers": {
+			ObjectMeta:  metav1.ObjectMeta{Name: "test", ResourceVersion: "1", Finalizers: []string{metav1.FinalizerOrphanDependents, metav1.FinalizerDeleteDependents}},
+			ExpectedErr: "cannot be both set",
+		},
+	}
+	for name, tc := range testcases {
+		errs := ValidateObjectMeta(&tc.ObjectMeta, false, NameIsDNSSubdomain, field.NewPath("field"))
 		if len(errs) == 0 {
 			if len(tc.ExpectedErr) != 0 {
 				t.Errorf("case: %q, expected error to contain %q", name, tc.ExpectedErr)

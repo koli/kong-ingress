@@ -17,9 +17,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	extensions "k8s.io/api/extensions/v1beta1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	extensions "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 const (
@@ -126,6 +128,57 @@ func NewTaskQueue(syncFn func(string, int) error, queueName string) *TaskQueue {
 func GenAdler32Hash(text string) string {
 	adler32Int := adler32.Checksum([]byte(text))
 	return strconv.FormatUint(uint64(adler32Int), 16)
+}
+
+// CreateCRD provision the Custom Resource Definition and
+// wait until the API is ready to interact it with
+func CreateCRD(clientset apiextensionsclient.Interface) error {
+	crd := &apiextensionsv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: kong.ResourceName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   kong.SchemeGroupVersion.Group,
+			Version: kong.SchemeGroupVersion.Version,
+			Scope:   apiextensionsv1beta1.NamespaceScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural: kong.ResourcePlural,
+				Kind:   kong.ResourceKind,
+				// ShortNames: []string{"domain"},
+			},
+		},
+	}
+	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	if err == nil || apierrors.IsAlreadyExists(err) {
+		glog.Infof("Custom Resource Definiton '%s' provisioned, waiting to be ready ...", kong.ResourceName)
+		return waitCRDReady(clientset)
+	}
+	return err
+}
+
+func waitCRDReady(clientset apiextensionsclient.Interface) error {
+	return wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
+		crd, err := clientset.
+			ApiextensionsV1beta1().
+			CustomResourceDefinitions().
+			Get(kong.ResourceName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, cond := range crd.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					return true, nil
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					return false, fmt.Errorf("Name conflict: %v", cond.Reason)
+				}
+			}
+		}
+		return false, nil
+	})
 }
 
 // CreateDomainTPRs generates the third party resource required for interacting with releases
