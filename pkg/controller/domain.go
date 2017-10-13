@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
 	"kolihub.io/kong-ingress/pkg/kong"
+
+	"github.com/golang/glog"
+
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -33,7 +36,7 @@ func (k *KongController) updateDomain(o, n interface{}) {
 			Status: old.Status,
 		}
 		d.Status.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
-		res, err := k.tprClient.Post().
+		res, err := k.extClient.Post().
 			Resource("domains").
 			Namespace(d.Namespace).
 			Body(d).
@@ -141,7 +144,7 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 	}
 	d := obj.(*kong.Domain)
 	if !d.IsValidDomain() {
-		glog.V(4).Infof("%s - The domain specified on the resource is in a invalid format", key)
+		glog.V(4).Infof("%s - The domain specified isn't valid", key)
 		k.updateDomainStatus(d, "Invalid", "The domain specified on the resource is invalid", kong.DomainStatusFailed)
 		return nil
 	}
@@ -173,10 +176,18 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 				return fmt.Errorf("gc=true, failed updating domain status [%s]", err)
 			}
 		}
-		// TODO: Instead of deleting the resource remove the finalizer
-		// https://github.com/kubernetes/kubernetes/issues/40715
-		// Here it's safe to delete the domain
-		res, err := k.tprClient.Delete().
+		// Delete the domain, all routes have been deleted
+		res, err := k.extClient.Patch(types.MergePatchType).
+			Resource("domains").
+			Name(d.Name).
+			Namespace(d.Namespace).
+			Body([]byte(`{"metadata": {"finalizers": []}}`)).
+			DoRaw()
+		if err != nil {
+			return fmt.Errorf("gc=true, failed removing finalizer from resource [%s, %s]", string(res), err)
+		}
+		// TODO: Removing the finalizer doesn't remove the resource automatically
+		res, err = k.extClient.Delete().
 			Resource("domains").
 			Name(d.Name).
 			Namespace(d.Namespace).
@@ -195,13 +206,13 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 	glog.V(3).Infof("%s - Status[%v] lastUpdated[%s]", key, phase, d.Status.LastUpdateTime.Format(time.RFC3339))
 	switch d.Status.Phase {
 	case kong.DomainStatusNew:
-		dCopy, err := d.DeepCopy()
-		if err != nil {
-			return fmt.Errorf("failed deep copying [%s]", err)
+		dCopy := d.DeepCopy()
+		if dCopy == nil {
+			return fmt.Errorf("failed deep copying [%v]", d)
 		}
 		dCopy.Status.Phase = kong.DomainStatusPending
 		dCopy.Finalizers = []string{kong.Finalizer}
-		res, err := k.tprClient.Put().
+		res, err := k.extClient.Put().
 			Resource("domains").
 			Name(d.Name).
 			Namespace(d.Namespace).
@@ -261,8 +272,8 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 				return fmt.Errorf("failed retrieving primary domain [%s]", err)
 			}
 			if pd == nil {
-				k.recorder.Event(d, v1.EventTypeWarning, "DomainNotFound", "The primary domain wasn't found")
-				if err := k.updateDomainStatus(d, "DomainNotFound", "The primary domain wasn't found", kong.DomainStatusFailed); err != nil {
+				k.recorder.Event(d, v1.EventTypeWarning, "DomainNotFound", "Primary domain not found")
+				if err := k.updateDomainStatus(d, "DomainNotFound", "Primary domain not found", kong.DomainStatusFailed); err != nil {
 					return fmt.Errorf("failed updating domain status [%s]", err)
 				}
 				return nil
@@ -282,8 +293,8 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 				return err
 			}
 			if pd == nil {
-				k.recorder.Event(d, v1.EventTypeWarning, "DomainNotFound", "The primary domain wasn't found")
-				if err := k.updateDomainStatus(d, "DomainNotFound", "The primary domain wasn't found", kong.DomainStatusFailed); err != nil {
+				k.recorder.Event(d, v1.EventTypeWarning, "DomainNotFound", "Primary domain not found")
+				if err := k.updateDomainStatus(d, "DomainNotFound", "Primary domain not found", kong.DomainStatusFailed); err != nil {
 					return fmt.Errorf("failed updating domain status [%s]", err)
 				}
 			}
@@ -309,16 +320,15 @@ func (k *KongController) updateDomainStatus(d *kong.Domain, reason, message stri
 	if d.Status.Phase == phase && d.Status.Message == message && d.Status.Reason == reason {
 		return nil
 	}
-
-	dCopy, err := d.DeepCopy()
-	if err != nil {
-		return fmt.Errorf("failed deep copying: %s", err)
+	dCopy := d.DeepCopy()
+	if dCopy == nil {
+		return fmt.Errorf("failed deep copying object [%v]", d)
 	}
 	dCopy.Status.Phase = phase
 	dCopy.Status.Reason = reason
 	dCopy.Status.Message = message
 	dCopy.Status.LastUpdateTime = time.Now().UTC()
-	r, err := k.tprClient.Put().
+	r, err := k.extClient.Put().
 		Resource("domains").
 		Name(dCopy.Name).
 		Namespace(dCopy.Namespace).

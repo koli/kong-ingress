@@ -16,16 +16,17 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubescheme "k8s.io/client-go/kubernetes/scheme"
 )
 
 // TODO: test with wipeondelete (on/off)
@@ -59,7 +60,7 @@ func init() {
 	pflag.StringVar(&cfg.TLSConfig.KeyFile, "key-file", "", "path to private TLS certificate file.")
 	pflag.StringVar(&cfg.TLSConfig.CAFile, "ca-file", "", "path to TLS CA file.")
 	pflag.StringVar(&cfg.KongAdminHost, "kong-server", "", "kong admin api service, e.g. 'http://127.0.0.1:8001'")
-	pflag.BoolVar(&cfg.AutoClaim, "auto-claim", false, "try to claim the hosts on creation")
+	pflag.BoolVar(&cfg.AutoClaim, "auto-claim", false, "try to claim hosts on new ingresses")
 	pflag.Int64Var(&cfg.ResyncOnFailed, "resync-on-fail", 60, "time to resync a domain in a failed state phase in seconds")
 	pflag.BoolVar(&cfg.WipeOnDelete, "wipe-on-delete", false, "wipe all orphan kong apis when deleting a domain resource")
 	pflag.StringVar(&cfg.ClusterDNS, "cluster-dns", "svc.cluster.local", "kubernetes cluster dns name, used to configure the upstream apis in Kong")
@@ -68,6 +69,9 @@ func init() {
 	pflag.BoolVar(&showVersion, "version", false, "print version information and quit")
 	pflag.BoolVar(&cfg.TLSInsecure, "tls-insecure", false, "don't verify API server's CA certificate.")
 	pflag.Parse()
+	// Convinces goflags that we have called Parse() to avoid noisy logs.
+	// OSS Issue: kubernetes/kubernetes#17162.
+	flag.CommandLine.Parse([]string{})
 }
 
 func main() {
@@ -95,23 +99,21 @@ func main() {
 			TLSClientConfig: cfg.TLSConfig,
 		}
 	}
-	var tprConfig *rest.Config
-	tprConfig = config
-	tprConfig.APIPath = "/apis"
-	tprConfig.GroupVersion = &kong.SchemeGroupVersion
-	tprConfig.ContentType = runtime.ContentTypeJSON
-	tprConfig.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: api.Codecs}
-	metav1.AddToGroupVersion(api.Scheme, kong.SchemeGroupVersion)
-	kong.SchemeBuilder.AddToScheme(api.Scheme)
 
-	tprClient, err := rest.RESTClientFor(tprConfig)
-	if err != nil {
-		glog.Fatalf("failed retrieving tprclient from config: %v", err)
+	var extConfig *rest.Config
+	extConfig = config
+	extConfig.APIPath = "/apis"
+	extConfig.GroupVersion = &kong.SchemeGroupVersion
+	extConfig.ContentType = runtime.ContentTypeJSON
+	extConfig.NegotiatedSerializer = serializer.DirectCodecFactory{
+		CodecFactory: kubescheme.Codecs,
 	}
-	kubeClient, err := kubernetes.NewForConfig(config)
+	kong.SchemeBuilder.AddToScheme(kubescheme.Scheme)
+	extClient, err := rest.RESTClientFor(extConfig)
 	if err != nil {
-		glog.Fatalf("failed retrieving client from config: %v", err)
+		glog.Fatalf("failed retrieving extensions client: %v", err)
 	}
+	kubeClient := kubernetes.NewForConfigOrDie(config)
 
 	kongcli, err := kong.NewKongRESTClient(&rest.Config{Host: cfg.KongAdminHost, Timeout: time.Second * 2})
 	if err != nil {
@@ -134,14 +136,13 @@ func main() {
 	} else {
 		cfg.PodNamespace = os.Getenv("POD_NAMESPACE")
 	}
-
-	if err := controller.CreateDomainTPRs(cfg.Host, kubeClient); err != nil {
+	if err := controller.CreateCRD(apiextensionsclient.NewForConfigOrDie(config)); err != nil {
 		glog.Fatalf("failed creating domains TPR: %s", err)
 	}
 
 	go controller.NewKongController(
 		kubeClient,
-		tprClient,
+		extClient,
 		kongcli,
 		&cfg,
 		time.Second*120,
