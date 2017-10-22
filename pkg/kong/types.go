@@ -119,6 +119,7 @@ type API struct {
 	PreserveHost bool      `json:"preserve_host"`
 	UpstreamURL  string    `json:"upstream_url"`
 	CreatedAt    Timestamp `json:"created_at,omitempty"`
+  	StripUri     bool      `json:"strip_uri"`
 }
 
 // APIList is a list of API's

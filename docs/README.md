@@ -2,7 +2,7 @@
 
 The controller watches for ingress endpoints and provisions Kong routes based on the ingress spec. It's only allowed to do so when all the domains are claimed for each host found in the ingress resource. A negative response generates a warning as a Kubernetes Event.
 
-Each host could have multiple paths endpoints with multiple services backends, the controller validates if a service exists for each path. The full URI of the service is used as the `upstream_url` when creating a route in Kong. 
+Each host could have multiple paths endpoints with multiple services backends, the controller validates if a service exists for each path. The full URI of the service is used as the `upstream_url` when creating a route in Kong.
 
 When an API is created by the controller it's identified following the convention: `[host]~[namespace]~[path-hash]`
 
@@ -165,6 +165,31 @@ metadata:
     kolihub.io/parent: acme-project
 spec:
   rules:
+  - host: coyote.acme.org
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: web
+          servicePort: 80
+```
+
+### Configure a set of API Objects via Ingress Resource Annotations
+A set of API Objects managed and exposed by Kong can be configured by annotating Ingress resources.
+
+#### Configurating the `strip_uri` property
+The [`strip_uri`](https://getkong.org/docs/0.10.x/proxy/#the-strip_uri-property) property determines whether or not to strip a matching prefix from the upstream URI to be requested. The default value is `true` but it might not be the desire behavior in all cases. To set the `strip_uri` property for a set of APIs an annotation is required.
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: coyote-acme-org
+  annotations:
+    ingress.kubernetes.io/strip-uri: "false"
+spec:
+  rules:
+  # this host will generate a domain claim as primary!
   - host: coyote.acme.org
     http:
       paths:
