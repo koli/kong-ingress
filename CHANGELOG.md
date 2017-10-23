@@ -1,3 +1,11 @@
+# v0.3.1-alpha
+
+**Image:** `quay.io/koli/kong-ingress:v0.3.1-alpha`
+
+## Changes
+
+- Configure Strip URI parameter for a set of API Objects via Ingress Annotations, by @paniagua
+
 # v0.3.0-alpha
 
 **Image:** `quay.io/koli/kong-ingress:v0.3.0-alpha`
