@@ -21,6 +21,6 @@ after_success:
 script:
   - make test build
 
- notifications:
-    slack: koliproject:gFSQJ91w1EGMmBjEPn26PVw6
+notifications:
+  slack: koliproject:gFSQJ91w1EGMmBjEPn26PVw6
 
