@@ -327,11 +327,18 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 				glog.Infof("Failed to parse strip-uri annotation, setting it to the default value true")
 			}
 
+			preserveHost, err := strconv.ParseBool(ing.Annotations["ingress.kubernetes.io/preserve-host"])
+			if err != nil {
+				preserveHost = false
+				glog.Infof("Failed to parse preserve-host annotation, setting it to the default value false")
+			}
+
 			apiBody := &kong.API{
-				Name:        apiName,
-				Hosts:       []string{r.Host},
-				UpstreamURL: upstreamURL,
-				StripUri:    stripUri,
+				Name:         apiName,
+				Hosts:        []string{r.Host},
+				UpstreamURL:  upstreamURL,
+				StripUri:     stripUri,
+				PreserveHost: preserveHost,
 			}
 			if p.Path != "" {
 				apiBody.URIs = []string{pathURI}
