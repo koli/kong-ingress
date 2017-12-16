@@ -198,3 +198,6 @@ spec:
           serviceName: web
           servicePort: 80
 ```
+
+#### Configurating the `preserve_host` property
+When proxying, Kong's default behavior is to set the upstream request's Host header to the hostname of the API's upstream_url property. The [`preserve_host`](https://getkong.org/docs/0.10.x/proxy/#the-preserve_host-property) field accepts a boolean flag instructing Kong not to do so. Default value is false.
