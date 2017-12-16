@@ -1,7 +1,6 @@
 # Kong Ingress
 
 [![Build Status](https://travis-ci.org/koli/kong-ingress.svg?branch=master)](https://travis-ci.org/koli/kong-ingress)
-[![Docker Repository on Quay](https://quay.io/repository/koli/kong-ingress/status "Docker Repository on Quay")](https://quay.io/repository/koli/kong-ingress)
 
 It's a Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) Controller for [Kong](https://getkong.org/about) which manages Kong apis for each existent host on ingresses resources.
 
@@ -36,24 +35,46 @@ A [Custom Resource Definition](https://kubernetes.io/docs/concepts/api-extension
 
 ## Quick Start
 
-Install [minikube](https://github.com/kubernetes/minikube) because is the quickest way to get a local Kubernetes.
+- Install [minikube](https://github.com/kubernetes/minikube) because is the quickest way to get a local Kubernetes.
+
+Create a namespace for kong and the ingress controller
 
 ```bash
-export CLUSTERDNS=$(kubectl get svc kube-dns -n kube-system --template {{.spec.clusterIP}})
+kubectl create ns kong-system
+```
 
-# Install a Kong Server
-kubectl create -f https://raw.githubusercontent.com/koli/kong-ingress/master/docs/examples/kong-server.yaml
-kubectl patch deployment -n kong-system kong -p \
-  '{"spec": {"template": {"spec":{"containers":[{"name": "kong", "env":[{"name": "KONG_DNS_RESOLVER", "value": '\"$CLUSTERDNS\"'}]}]}}}}'
+- Install [Kong on Kubernetes](https://getkong.org/install/kubernetes/) following the minikube instructions.
 
-# Install the Kong Ingress Controller
-kubectl create -f https://raw.githubusercontent.com/koli/kong-ingress/master/docs/examples/kong-ingress.yaml
+> Create all the resources in the `kong-system` namespace. E.g.: `kubectl create -f postgres.yaml -n kong-system`.
 
-# Expose Kong
-kubectl expose deployment kong -n kong-system --name kong-proxy --external-ip=$(minikube ip) --port 8000 --target-port 8000
+- Install the Kong Ingress Controller
 
-# Wait for all pods to be ready
-kubectl get pod -n kong-system -w
+```bash
+KONG_INGRESS_VERSION=v0.3.1-alpha kubectl create -f - <<EOF
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kong-ingress
+  namespace: kong-system
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kong-ingress
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: kong-ingress
+        image: 'quay.io/koli/kong-ingress:$KONG_INGRESS_VERSION'
+        args:
+        - --auto-claim
+        - --wipe-on-delete
+        - --kong-server=http://kong-admin:8001
+        - --v=4
+        - --logtostderr
+        - --tls-insecure
+EOF
 ```
 
 After all pods are in the `Running` state, begin to create your routes. The example above creates two distinct deployments and expose then using services as 'web' and 'hello':
@@ -162,12 +183,24 @@ spec:
 EOF
 ```
 
+Expose Kong Proxy
+
+```bash
+kubectl -n kong-system patch service kong-proxy -p '{"spec": {"externalIPs": ["'$(minikube ip)'"]}}'
+```
+
 Assuming the domains are mapped in `/etc/hosts` file, it's possible to access the services through Kong at:
 
 - `http://acme.local:8000`
 - `http://duck.acme.local:8000`
 - `http://marvin.acme.local:8000/web`
 - `http://marvin.acme.local:8000/hello`
+
+You could perform a HTTP request with CURL and use the `Host` header to fake the access to a specific route:
+
+```bash
+curl http://$(minikube ip):8000/web -H 'Host: marvin.acme.local'
+```
 
 ## Known Issues/Limitations
 
