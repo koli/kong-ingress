@@ -4,7 +4,7 @@
 
 It's a Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) Controller for [Kong](https://getkong.org/about) which manages Kong apis for each existent host on ingresses resources.
 
-# What's is an Ingress Controller
+# What's an Ingress Controller
 
 An Ingress Controller is a daemon, deployed as a Kubernetes Pod, that watches the apiserver's /ingresses endpoint for updates to the Ingress resource. Its job is to satisfy requests for ingress.
 
@@ -33,6 +33,10 @@ Read more about [Domain Claims.](./docs/domain-claims.md)
 - [Ingress Claim Proposal](https://docs.google.com/document/d/1Kj9OcTQdERZgNkZhdDxnQeT-TI4DLqqg62lShnboT6s/)
 - [Kubernetes GitHub Issue](https://github.com/kubernetes/kubernetes/issues/30151)
 
+## Controller Scope
+
+The controller watches for all ingress resources of the cluster, meaning that it's not necessary to install multiple instances of the controller by namespace.
+
 ## Prerequisites
 
 - Kubernetes cluster v1.7.0+
@@ -41,12 +45,12 @@ Read more about [Domain Claims.](./docs/domain-claims.md)
 
 # Quick Start - Minikube
 
-> The example above installs Kong and the Ingress Controller in the `default` namespace. We recommend to install the components in a custom namespace to facilitate administration.
+> The example above installs Kong and the Ingress Controller in the `default` namespace. It's recommended to install the components in a custom namespace to facilitate administration.
 
-- **Follow the [Kong Kubernetes Tutorial](https://getkong.org/install/kubernetes/) to install a Kubernetes cluster with Kong**
-- **Install RBAC (optional)**
+1) **Follow the [Kong Kubernetes Tutorial](https://getkong.org/install/kubernetes/) to install a Kubernetes cluster with Kong**
+2) **Install RBAC (optional)**
 
-If RBAC is in place, users must create RBAC rules for the ingress controller.
+If RBAC is in place, users must create RBAC rules for the ingress controller:
 
 ```bash
 kubectl create -f ./examples/rbac/cluster-role.yaml
@@ -55,7 +59,7 @@ kubectl create -f ./examples/rbac/cluster-role-binding.yaml
 
 > It will enable access only to the default Service Account and only to the required resources.
 
-- Install the Kong Ingress Controller
+3) **Install the Kong Ingress Controller**
 
 
 ```bash
@@ -129,7 +133,7 @@ spec:
 EOF
 ```
 
-### The ingress resource below will create 4 routes at Kong, one route for each path:
+4) **The ingress resource below will create 4 routes at Kong, one route for each path**
 
 ```bash
 # The ingress resource mapping the routes
@@ -170,7 +174,7 @@ spec:
 EOF
 ```
 
-### Expose Kong Proxy and access the services
+5) **Expose Kong Proxy and access the services**
 
 ```bash
 kubectl -n kong-system patch service kong-proxy -p '{"spec": {"externalIPs": ["'$(minikube ip)'"]}}'
