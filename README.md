@@ -4,28 +4,34 @@
 
 It's a Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) Controller for [Kong](https://getkong.org/about) which manages Kong apis for each existent host on ingresses resources.
 
-## What's is an Ingress Controller
+# What's is an Ingress Controller
 
 An Ingress Controller is a daemon, deployed as a Kubernetes Pod, that watches the apiserver's /ingresses endpoint for updates to the Ingress resource. Its job is to satisfy requests for ingress.
 
-## Important Note
+# Important Note
 
 - This is a work in progress project.
 - It relies on a beta Kubernetes resource.
 
-## Overview
+# Overview
 
-Kong it's an API Gateway that deals with L7 traffic, the ingress uses the kong admin API for managing the [apis resources](https://getkong.org/docs/0.10.x/admin-api/#api-object). Each existent host on an ingress spec could map several apis on Kong enabling path based routing. The main object of this controller is to act as an orchestrator of domains and routes on Kong. Load balancing between containers could be achieved using [Services](https://kubernetes.io/docs/concepts/services-networking/service/) to allow external access to Kong it's possible to expose Kong as a [NodePort Service](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) and route traffic to that port.
+Kong it's an API Gateway that deals with L7 traffic, the ingress uses the kong admin API for managing the [apis resources](https://getkong.org/docs/0.10.x/admin-api/#api-object). Each existent host on an ingress spec could map several apis on Kong enabling path based routing. The main object of this controller is to act as an orchestrator of domains and routes on Kong. Load balancing between containers could be achieved using [Services](https://kubernetes.io/docs/concepts/services-networking/service/). To expose your routes outside of the cluster, choose between a [publish service type](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types) on Kubernetes.
 
-### Domain Claims
+## Domain Claims
 
 Some of the main problems of using name based virtual hosting with ingress is that you can't know who's the owner of a specific host, thus a Kong api could be updated by multiple ingress resources resulting in an unwanted behaviour.
 
-A [Custom Resource Definition](https://kubernetes.io/docs/concepts/api-extension/custom-resources/) is used to allow the kong ingress to lease domains for each host specified in ingress resources. If a domain is already claimed in the cluster, the controller rejects the creation of apis on Kong.
+A [Custom Resource Definition](https://kubernetes.io/docs/concepts/api-extension/custom-resources/) is used to allow the kong ingress to lease domains for each host specified on ingress resources. If a domain is already claimed in the cluster, the controller rejects the creation of apis on Kong.
 
-[More info](./docs/domain-claims.md)
+Read more about [Domain Claims.](./docs/domain-claims.md)
 
-> More info about the issue: https://github.com/kubernetes/kubernetes/issues/30151
+> In the future this probally will change if the Ingress Claim Proposal move forward.
+
+**More Info:**
+
+- [Domain Claims](./docs/domain-claims.md)
+- [Ingress Claim Proposal](https://docs.google.com/document/d/1Kj9OcTQdERZgNkZhdDxnQeT-TI4DLqqg62lShnboT6s/)
+- [Kubernetes GitHub Issue](https://github.com/kubernetes/kubernetes/issues/30151)
 
 ## Prerequisites
 
@@ -33,51 +39,30 @@ A [Custom Resource Definition](https://kubernetes.io/docs/concepts/api-extension
 - Kubernetes DNS add-on
 - Kong server v0.10.0+
 
-## Quick Start
+# Quick Start - Minikube
 
-- Install [minikube](https://github.com/kubernetes/minikube) because is the quickest way to get a local Kubernetes.
+> The example above installs Kong and the Ingress Controller in the `default` namespace. We recommend to install the components in a custom namespace to facilitate administration.
 
-Create a namespace for kong and the ingress controller
+- **Follow the [Kong Kubernetes Tutorial](https://getkong.org/install/kubernetes/) to install a Kubernetes cluster with Kong**
+- **Install RBAC (optional)**
+
+If RBAC is in place, users must create RBAC rules for the ingress controller.
 
 ```bash
-kubectl create ns kong-system
+kubectl create -f ./examples/rbac/cluster-role.yaml
+kubectl create -f ./examples/rbac/cluster-role-binding.yaml
 ```
 
-- Install [Kong on Kubernetes](https://getkong.org/install/kubernetes/) following the minikube instructions.
-
-> Create all the resources in the `kong-system` namespace. E.g.: `kubectl create -f postgres.yaml -n kong-system`.
+> It will enable access only to the default Service Account and only to the required resources.
 
 - Install the Kong Ingress Controller
 
+
 ```bash
-KONG_INGRESS_VERSION=v0.3.1-alpha kubectl create -f - <<EOF
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: kong-ingress
-  namespace: kong-system
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        app: kong-ingress
-    spec:
-      terminationGracePeriodSeconds: 60
-      containers:
-      - name: kong-ingress
-        image: 'quay.io/koli/kong-ingress:$KONG_INGRESS_VERSION'
-        args:
-        - --auto-claim
-        - --wipe-on-delete
-        - --kong-server=http://kong-admin:8001
-        - --v=4
-        - --logtostderr
-        - --tls-insecure
-EOF
+kubectl create -f ./examples/deployment.yaml
 ```
 
-After all pods are in the `Running` state, begin to create your routes. The example above creates two distinct deployments and expose then using services as 'web' and 'hello':
+After all pods are in the `Running` state, begin to create your routes. The example above creates two distinct deployments and expose then using services as `web` and `hello`:
 
 ```bash
 # An example app
@@ -142,9 +127,11 @@ spec:
   selector:
     app: hello
 EOF
+```
 
-The ingress resource below will create 4 routes at Kong, one route for path:
+### The ingress resource below will create 4 routes at Kong, one route for each path:
 
+```bash
 # The ingress resource mapping the routes
 kubectl create -f - <<EOF
 apiVersion: extensions/v1beta1
@@ -183,7 +170,7 @@ spec:
 EOF
 ```
 
-Expose Kong Proxy
+### Expose Kong Proxy and access the services
 
 ```bash
 kubectl -n kong-system patch service kong-proxy -p '{"spec": {"externalIPs": ["'$(minikube ip)'"]}}'

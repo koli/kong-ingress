@@ -10,6 +10,8 @@ When an API is created by the controller it's identified following the conventio
 - `namespace` is the name of the current namespace of the resource
 - `path-hash` is the URI part of a HTTPIngressPath hash encoded
 
+> This could be changed in the future with the introduction of filtering APIs with labels. [Reference](https://github.com/Kong/kong/issues/383).
+
 The domain claims ensure that every route is created or updated only if the namespace owns the domains specified in the ingress resource, thus preventing overwriting existing routes which doesn't belong to a specific namespace. [Read more about domain claims](domain-claims.md)
 
 #### Cleaning Up
