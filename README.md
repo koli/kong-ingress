@@ -58,6 +58,8 @@ kubectl create -f ./examples/rbac/cluster-role-binding.yaml
 ```
 
 > It will enable access only to the default Service Account and only to the required resources.
+> **Note:** The cluster role binding namespace defaults to `kong-system`, make sure to change
+> if you're installing in a different namespace.
 
 3) **Install the Kong Ingress Controller**
 

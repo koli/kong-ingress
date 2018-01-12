@@ -13,7 +13,6 @@ import (
 	"github.com/juju/ratelimit"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -28,12 +27,8 @@ const (
 	// ingressClassKey picks a specific "class" for the Ingress. The controller
 	// only processes Ingresses with this annotation either unset, or set
 	// to either gceIngessClass or the empty string.
-	ingressClassKey  = "kubernetes.io/ingress.class"
-	kongIngressClass = "kong"
-	// kong ingress maximum size rules
-	hardRuleSizeQuota = 5
-	// kong ingress maximum size paths
-	hardPathSizeQuota   = 5
+	ingressClassKey     = "kubernetes.io/ingress.class"
+	kongIngressClass    = "kong"
 	autoClaimMaxRetries = 8
 )
 
@@ -112,6 +107,7 @@ func (t *TaskQueue) shutdown() {
 // NewTaskQueue creates a new task queue with the given sync function.
 // The sync function is called for every element inserted into the queue.
 func NewTaskQueue(syncFn func(string, int) error, queueName string) *TaskQueue {
+	workqueue.SetProvider(prometheusMetricsProvider{})
 	rateLimiter := workqueue.NewMaxOfRateLimiter(
 		workqueue.NewItemExponentialFailureRateLimiter(300*time.Millisecond, 1000*time.Second),
 		// 10 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
@@ -178,37 +174,6 @@ func waitCRDReady(clientset apiextensionsclient.Interface) error {
 			}
 		}
 		return false, nil
-	})
-}
-
-// CreateDomainTPRs generates the third party resource required for interacting with releases
-func CreateDomainTPRs(host string, clientset kubernetes.Interface) error {
-	tprs := []*extensions.ThirdPartyResource{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "domain.platform.koli.io",
-			},
-			Versions: []extensions.APIVersion{
-				{Name: "v1"},
-			},
-			Description: "Holds information about domain claims to prevent duplicated hosts in ingress resources",
-		},
-	}
-	tprClient := clientset.Extensions().ThirdPartyResources()
-	for _, tpr := range tprs {
-		if _, err := tprClient.Create(tpr); err != nil && !apierrors.IsAlreadyExists(err) {
-			return err
-		}
-		glog.Infof("Third Party Resource '%s' provisioned", tpr.Name)
-	}
-
-	// We have to wait for the TPRs to be ready. Otherwise the initial watch may fail.
-	return wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
-		_, err := clientset.ExtensionsV1beta1().ThirdPartyResources().Get("domain.platform.koli.io", metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		return true, nil
 	})
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"kolihub.io/kong-ingress/pkg/controller"
+	"kolihub.io/kong-ingress/pkg/controller/monitoring"
 	"kolihub.io/kong-ingress/pkg/kong"
 	"kolihub.io/kong-ingress/pkg/version"
 
@@ -29,12 +30,6 @@ import (
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 )
 
-// TODO: test with wipeondelete (on/off)
-// TODO: delete a primary domain
-// TODO: delete a shared domain
-// TODO: set a deletionTimestamp on a domain resource
-// TODO: test the API recursiviness
-
 const (
 	// The default namespace to store the cluster primary domains.
 	// If the controller isn't running inside a pod, then this namespace
@@ -51,7 +46,7 @@ type Version struct {
 }
 
 var cfg controller.Config
-var showVersion bool
+var printVersion bool
 
 func init() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
@@ -59,14 +54,16 @@ func init() {
 	pflag.StringVar(&cfg.TLSConfig.CertFile, "cert-file", "", "path to public TLS certificate file.")
 	pflag.StringVar(&cfg.TLSConfig.KeyFile, "key-file", "", "path to private TLS certificate file.")
 	pflag.StringVar(&cfg.TLSConfig.CAFile, "ca-file", "", "path to TLS CA file.")
-	pflag.StringVar(&cfg.KongAdminHost, "kong-server", "", "kong admin api service, e.g. 'http://127.0.0.1:8001'")
+	pflag.StringVar(&cfg.KongAdminHost, "kong-server", "http://kong-admin:8001", "kong admin api service, e.g. 'http://127.0.0.1:8001'")
 	pflag.BoolVar(&cfg.AutoClaim, "auto-claim", false, "try to claim hosts on new ingresses")
 	pflag.Int64Var(&cfg.ResyncOnFailed, "resync-on-fail", 60, "time to resync a domain in a failed state phase in seconds")
 	pflag.BoolVar(&cfg.WipeOnDelete, "wipe-on-delete", false, "wipe all orphan kong apis when deleting a domain resource")
 	pflag.StringVar(&cfg.ClusterDNS, "cluster-dns", "svc.cluster.local", "kubernetes cluster dns name, used to configure the upstream apis in Kong")
 	pflag.StringVar(&cfg.PodNamespace, "pod-namespace", defaultNamespace, "the namespace to store cluster primary domains. It will be ignored if is running inside a kubernetes pod")
+	pflag.StringVar(&cfg.HealthzBindAddress, "healthz-bind-address", "0.0.0.0", "The IP address for the healthz server to serve on. (set to 0.0.0.0 for all interfaces)")
+	pflag.Int32Var(&cfg.HealthzPort, "healthz-port", 20251, "The port of the localhost healthz/metrics endpoint (set to 0 to disable)")
 
-	pflag.BoolVar(&showVersion, "version", false, "print version information and quit")
+	pflag.BoolVar(&printVersion, "version", false, "print version information and quit")
 	pflag.BoolVar(&cfg.TLSInsecure, "tls-insecure", false, "don't verify API server's CA certificate.")
 	pflag.Parse()
 	// Convinces goflags that we have called Parse() to avoid noisy logs.
@@ -75,19 +72,26 @@ func init() {
 }
 
 func main() {
-	if showVersion {
-		version := version.Get()
-		b, err := json.Marshal(&version)
-		if err != nil {
-			fmt.Printf("failed decoding version: %s\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(b))
-		return
+	if printVersion {
+		showVersion(&cfg)
 	}
-	var config *rest.Config
-	var err error
 
+	kongcli, err := kong.NewKongRESTClient(&rest.Config{Host: cfg.KongAdminHost, Timeout: time.Second * 2})
+	if err != nil {
+		glog.Fatalf("failed retrieving client config for kong: %s", err)
+	}
+
+	kongVersion, err := getKongVersion(kongcli)
+	if err == nil {
+		glog.Infof("Kong Version: %s", kongVersion)
+		if kongVersion.Minor < minimalMinorKongVersion {
+			glog.Warningf("unsupported version, require 0.%d.0+", minimalMinorKongVersion)
+		}
+	} else {
+		glog.Warningf("failed retrieving kong version: %s", err)
+	}
+
+	var config *rest.Config
 	if len(cfg.Host) == 0 {
 		config, err = rest.InClusterConfig()
 		if err != nil {
@@ -115,20 +119,6 @@ func main() {
 	}
 	kubeClient := kubernetes.NewForConfigOrDie(config)
 
-	kongcli, err := kong.NewKongRESTClient(&rest.Config{Host: cfg.KongAdminHost, Timeout: time.Second * 2})
-	if err != nil {
-		glog.Fatalf("failed retriveving client config for kong: %s", err)
-	}
-
-	kongVersion, err := getKongVersion(kongcli)
-	if err != nil {
-		glog.Fatalf("failed retrieving kong version: %s", err)
-	}
-	glog.Infof("Kong Version: %s", kongVersion)
-	if kongVersion.Minor < minimalMinorKongVersion {
-		glog.Fatalf("unsupported version, require 0.%d.0+", minimalMinorKongVersion)
-	}
-
 	if len(os.Getenv("POD_NAMESPACE")) == 0 {
 		if err := createDefaultNamespace(kubeClient); err != nil {
 			glog.Fatal(err.Error())
@@ -137,7 +127,7 @@ func main() {
 		cfg.PodNamespace = os.Getenv("POD_NAMESPACE")
 	}
 	if err := controller.CreateCRD(apiextensionsclient.NewForConfigOrDie(config)); err != nil {
-		glog.Fatalf("failed creating domains TPR: %s", err)
+		glog.Fatalf("failed creating domains CRD: %s", err)
 	}
 
 	go controller.NewKongController(
@@ -147,6 +137,7 @@ func main() {
 		&cfg,
 		time.Second*120,
 	).Run(1, wait.NeverStop)
+	monitoring.ListenAndServeAll(cfg.HealthzBindAddress, cfg.HealthzPort)
 	select {} // block forever
 }
 
@@ -189,4 +180,21 @@ func getKongVersion(kongcli *kong.CoreClient) (*kong.KongVersion, error) {
 	kv.Minor, _ = strconv.Atoi(v[1])
 	kv.Patch, _ = strconv.Atoi(v[2])
 	return kv, nil
+}
+
+func showVersion(cfg *controller.Config) {
+	version := version.Get()
+	b, err := json.Marshal(&version)
+	if err != nil {
+		fmt.Printf("failed decoding version: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(string(b))
+	if kongcli, _ := kong.NewKongRESTClient(&rest.Config{Host: cfg.KongAdminHost, Timeout: time.Second * 2}); kongcli != nil {
+		kongVersion, _ := getKongVersion(kongcli)
+		if kongVersion != nil {
+			fmt.Printf("Kong Version: %s\n", kongVersion)
+		}
+	}
+	os.Exit(0)
 }

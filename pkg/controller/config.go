@@ -13,4 +13,7 @@ type Config struct {
 	AutoClaim      bool
 	WipeOnDelete   bool
 	ResyncOnFailed int64
+
+	HealthzBindAddress string
+	HealthzPort        int32
 }

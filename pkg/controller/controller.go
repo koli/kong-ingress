@@ -211,6 +211,7 @@ func (k *KongController) syncServices(key string, numRequeues int) error {
 			if err := k.kongcli.API().Delete(api.Name); err != nil {
 				return fmt.Errorf("gc=true, failed removing kong api %s, [%s]", api.Name, err)
 			}
+			apisTotal.Dec()
 		}
 		// remove the finalizer
 		if _, err := k.client.Core().Services(svc.Namespace).Patch(
@@ -324,13 +325,13 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 			stripUri, err := strconv.ParseBool(ing.Annotations["ingress.kubernetes.io/strip-uri"])
 			if err != nil {
 				stripUri = true
-				glog.Infof("Failed to parse strip-uri annotation, setting it to the default value true")
+				glog.V(6).Infof("Failed to parse strip-uri annotation, setting it to the default value true")
 			}
 
 			preserveHost, err := strconv.ParseBool(ing.Annotations["ingress.kubernetes.io/preserve-host"])
 			if err != nil {
 				preserveHost = false
-				glog.Infof("Failed to parse preserve-host annotation, setting it to the default value false")
+				glog.V(6).Infof("Failed to parse preserve-host annotation, setting it to the default value false")
 			}
 
 			apiBody := &kong.API{
@@ -351,7 +352,11 @@ func (k *KongController) syncIngress(key string, numRequeues int) error {
 			}
 			api, resp = k.kongcli.API().UpdateOrCreate(apiBody)
 			if resp.Error() != nil && !apierrors.IsConflict(resp.Error()) {
+				apisFailed.Inc()
 				return fmt.Errorf("failed adding api: %s", resp)
+			}
+			if resp.Error() == nil {
+				apisTotal.Inc()
 			}
 			glog.Infof("%s - added route for %s[%s]", key, r.Host, api.UID)
 		}
