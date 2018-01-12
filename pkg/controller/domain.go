@@ -99,6 +99,7 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 					if err := k.kongcli.API().Delete(api.Name); err != nil {
 						return fmt.Errorf("gc=true, wipeondelete=true, failed removing kong api [%s]", err)
 					}
+					apisTotal.Dec()
 				}
 				if err := k.updateDomainStatus(d, "DomainDeleted", "The primary domain was deleted", kong.DomainStatusFailed); err != nil {
 					return fmt.Errorf("gc=true, wipeondelete=true, failed updating domain status [%s]", err)
@@ -134,6 +135,7 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 					if err := k.kongcli.API().Delete(api.Name); err != nil {
 						return fmt.Errorf("gc=true, wipeondelete=true, failed removing api [%s]", err)
 					}
+					apisTotal.Dec()
 				}
 				continue
 			}
@@ -171,6 +173,7 @@ func (k *KongController) syncDomain(key string, numRequeues int) error {
 				if err := k.kongcli.API().Delete(api.Name); err != nil {
 					return fmt.Errorf("gc=true, failed removing kong api [%s]", err)
 				}
+				apisTotal.Dec()
 			}
 			if err := k.updateDomainStatus(dom, "DomainDeleted", "The primary domain was deleted", kong.DomainStatusFailed); err != nil {
 				return fmt.Errorf("gc=true, failed updating domain status [%s]", err)

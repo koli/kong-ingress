@@ -119,7 +119,7 @@ type API struct {
 	PreserveHost bool      `json:"preserve_host"`
 	UpstreamURL  string    `json:"upstream_url"`
 	CreatedAt    Timestamp `json:"created_at,omitempty"`
-  	StripUri     bool      `json:"strip_uri"`
+	StripUri     bool      `json:"strip_uri"`
 }
 
 // APIList is a list of API's
@@ -179,5 +179,8 @@ type KongVersion struct {
 
 // String returns the string representation of the KongVersion struct
 func (k *KongVersion) String() string {
+	if k.Major == 0 && k.Minor == 0 && k.Patch == 0 {
+		return "unknown"
+	}
 	return fmt.Sprintf("v%d.%d.%d", k.Major, k.Minor, k.Patch)
 }
