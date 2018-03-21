@@ -1,5 +1,7 @@
 # Kong Ingress
 
+[![Join the chat at https://gitter.im/koli/kong-ingress](https://badges.gitter.im/koli/kong-ingress.svg)](https://gitter.im/koli/kong-ingress?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 [![Build Status](https://travis-ci.org/koli/kong-ingress.svg?branch=master)](https://travis-ci.org/koli/kong-ingress)
 
 It's a Kubernetes [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) Controller for [Kong](https://getkong.org/about) which manages Kong apis for each existent host on ingresses resources.
